@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Annotated Bibliography Booklet</title>
+    <link rel="icon" type="image/png" href="favicon.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@200..800&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      :root {
+        --wall: #89ce00;
+        --spine: #0073e6;
+        --board: #e6308a;
+        --title-hl: #5ba300;
+        --title-hl-hover: #b51963;
+        --marker: #f57600;
+        --toggle: #000000; /* the two view circles */
+        --text: #ffffff;
+        --thickness: 26px;
+        --gap: 2px;
+        --pad: 10px;
+        --square: 12px;
+        --tracking: 0.01em; /* letter-spacing, used everywhere */
+        --preview-w: 760px; /* max width of the hover image */
+        --preview-h: 60vh; /* max height of the hover image */
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      html,
+      .thumb-item {
+        scrollbar-width: none;
+      }
+
+      html::-webkit-scrollbar,
+      .thumb-item::-webkit-scrollbar {
+        display: none;
+      }
+
+      body {
+        /* min-height (not height) so a tall thumbnail pile can grow and
+           scroll instead of being pushed off the top of the screen */
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        align-items: flex-end;
+        gap: var(--gap);
+        background: var(--wall);
+        color: var(--text);
+        font-family: "Atkinson Hyperlegible Next", system-ui, sans-serif;
+        font-weight: 300;
+        font-optical-sizing: auto;
+      }
+
+      /* ---------- view switching ---------- */
+
+      body[data-view="spines"] #thumbs,
+      body[data-view="thumbs"] #stack {
+        display: none;
+      }
+
+      /* ---------- version 1: spines ---------- */
+
+      .stack {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: var(--gap);
+      }
+
+      .spine {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--pad); /* same as the left/right inset */
+        width: fit-content;
+        max-width: 100vw;
+        height: var(--thickness);
+        padding: 0 var(--pad);
+        background: var(--spine);
+        color: var(--text);
+        font-size: 12px;
+        letter-spacing: var(--tracking);
+        white-space: nowrap;
+        transition: transform 120ms ease;
+      }
+
+      .spine:hover {
+        transform: translateX(-6px);
+      }
+
+      .spine-nums {
+        display: flex;
+        align-items: center;
+        gap: 0; /* no dead space, so the preview never blinks off */
+      }
+
+      .num {
+        width: var(--square);
+        height: var(--square);
+        padding: 0;
+        border: 0;
+        background: var(--marker);
+        cursor: pointer;
+      }
+
+      /* the "gap" is painted inside the square, so it still counts as hover */
+      .num + .num {
+        box-shadow: inset 1px 0 0 var(--spine);
+      }
+
+      .num:hover,
+      .num:focus-visible,
+      .num.is-active {
+        background: var(--text);
+      }
+
+      /* ---------- version 2: first five thumbnails ---------- */
+
+      .thumbs {
+        /* --thumb-h is set from JS: the length of the longest name as a
+           vertical spine. Every vertical spine and thumbnail uses it. */
+        --thumb-h: 160px;
+        position: relative;
+        z-index: 1;
+        display: flex;
+        /* students fill from the bottom-right; wrap-reverse sends any
+           leftovers to the top, so full rows sit at the bottom of the pile */
+        flex-wrap: wrap-reverse;
+        justify-content: flex-end;
+        gap: var(--gap);
+        max-width: 100vw;
+      }
+
+      .thumb-item {
+        display: flex;
+        align-items: flex-start;
+        flex: 0 1 auto;
+        min-width: 0;
+        max-width: 100vw;
+        overflow-x: auto; /* only kicks in on screens narrower than one student */
+      }
+
+      .thumb-strip {
+        display: flex;
+        gap: var(--gap);
+      }
+
+      /* display only: no hover, no click */
+      .thumb {
+        display: block;
+        flex: none;
+        height: var(--thumb-h);
+        background: var(--spine);
+      }
+
+      /* natural proportions, no cropping */
+      .thumb img {
+        display: block;
+        height: 100%;
+        width: auto;
+      }
+
+      .thumb-empty {
+        flex: none;
+        width: calc(var(--thumb-h) * 0.76);
+        height: var(--thumb-h);
+        background: var(--spine);
+      }
+
+      /* orange edge after the 5th image: click to reveal the rest */
+      .thumb-more {
+        flex: none;
+        width: var(--square);
+        height: var(--thumb-h);
+        padding: 0;
+        border: 0;
+        background: var(--marker);
+        cursor: pointer;
+      }
+
+      .thumb-more:hover,
+      .thumb-more:focus-visible {
+        background: var(--text);
+      }
+
+      .thumb-extra {
+        display: none;
+      }
+
+      .thumb-item.is-open .thumb-extra {
+        display: contents; /* extra images join the strip's own spacing */
+      }
+
+      /* the horizontal spine turned on end: reads bottom to top */
+      .thumb-name {
+        display: block;
+        flex: none;
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        width: var(--thickness);
+        height: var(--thumb-h);
+        padding: var(--pad) 0;
+        background: var(--spine);
+        color: var(--text);
+        font-size: 12px;
+        line-height: var(--thickness);
+        letter-spacing: var(--tracking);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis; /* only if the pile had to shrink below the name */
+      }
+
+      /* off-screen copy used to measure the longest name */
+      .thumb-name.is-measure {
+        position: absolute;
+        visibility: hidden;
+        height: auto;
+        pointer-events: none;
+      }
+
+      /* ---------- bottom row ---------- */
+
+      .board {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        width: 100%;
+        height: var(--thickness);
+        flex: none;
+        padding: 0;
+        background: var(--board);
+        color: #000000;
+        font-size: 12px;
+        letter-spacing: var(--tracking);
+        white-space: nowrap;
+      }
+
+      .board span {
+        display: flex;
+        align-items: center;
+        height: 100%;
+        padding: 0 var(--pad);
+      }
+
+      .board-right {
+        display: flex;
+        align-items: center;
+        height: 100%;
+      }
+
+      .board .views {
+        gap: 6px;
+      }
+
+      .view-btn {
+        width: var(--square);
+        height: var(--square);
+        padding: 0;
+        border: 1px solid var(--toggle);
+        border-radius: 50%;
+        background: transparent;
+        cursor: pointer;
+      }
+
+      .view-btn:hover,
+      .view-btn[aria-pressed="true"] {
+        background: var(--toggle);
+      }
+
+      .view-btn:focus-visible {
+        outline: 1.5px solid var(--text);
+        outline-offset: 1px;
+      }
+
+      .board .term {
+        background: var(--spine);
+        color: var(--text);
+      }
+
+      .board .title {
+        background: var(--title-hl);
+        cursor: default;
+      }
+
+      .board .title:hover,
+      .board .title:focus-visible {
+        background: var(--title-hl-hover);
+        color: var(--text);
+      }
+
+      /* ---------- top-left overlays ---------- */
+
+      #preview,
+      #caption {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 0; /* sits behind the spines and the bottom row */
+        display: none;
+        pointer-events: none;
+      }
+
+      /* Every preview fits the same box: as big as it can be without
+         going past 760px wide or 60% of the screen height. Tall images
+         stop at the height, wide ones at the width, small files scale up.
+         Nothing is cropped; the image hugs the top-left corner. */
+      #preview {
+        width: min(var(--preview-w), 70vw);
+        height: var(--preview-h);
+        object-fit: contain;
+        object-position: left top;
+      }
+
+      #caption {
+        max-width: min(300px, 55vw);
+        margin: 0;
+        padding: var(--pad);
+        color: #000000;
+        font-size: 12px;
+        line-height: 1.15;
+        letter-spacing: var(--tracking);
+      }
+
+      #preview.is-visible,
+      #caption.is-visible {
+        display: block;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .spine {
+          transition: none;
+        }
+        .spine:hover {
+          transform: none;
+        }
+      }
+    </style>
+  </head>
+
+  <body data-view="spines">
+    <div class="stack" id="stack"></div>
+    <div class="thumbs" id="thumbs"></div>
+
+    <div class="board" id="board">
+      <span class="term">Critical Inquiry</span>
+      <div class="board-right">
+        <span class="views" role="group" aria-label="View">
+          <button
+            class="view-btn"
+            type="button"
+            data-view="spines"
+            aria-label="Spine view"
+            aria-pressed="true"
+          ></button>
+          <button
+            class="view-btn"
+            type="button"
+            data-view="thumbs"
+            aria-label="Thumbnail view"
+            aria-pressed="false"
+          ></button>
+        </span>
+        <span class="title" id="title" tabindex="0"
+          >Annotated Bibliography Booklet</span
+        >
+      </div>
+    </div>
+
+    <img id="preview" src="" alt="" />
+
+    <p id="caption">
+      This website holds a stack of annotated bibliography booklets. Each has
+      around twenty references that, at first, had little obligation to make
+      sense together. They were simply things each student had noticed and
+      wanted to keep looking at. Over time, the references accumulated around
+      one another, and certain connections became easier to see, while others
+      only made sense afterward.
+    </p>
+
+    <script>
+      const SHEET_ID = "156o0j91V-V3oTY24mJt4H_0BCzU-rlQtwD34PwcgYbA";
+      const API_KEY = "AIzaSyBT1RtYVeoSg1DqcUN9LsUQyQdRNeypAwY";
+      const TAB_NAME = "fall_2026";
+      const MAX_IMAGES = 15;
+      // column B = name, C through Q = up to 15 images
+      const RANGE = "B3:Q20";
+
+      const THUMBS_SHOWN = 5; // images per student in the thumbnail view
+
+      function placeholderData() {
+        return Array.from({ length: 18 }, (_, i) => {
+          const n = String(i + 1).padStart(2, "0");
+          const count = 4 + ((i * 5) % 12); // 4 to 15 images
+          return {
+            name: "Placeholder Name " + n,
+            images: Array.from(
+              { length: count },
+              (_, j) => `https://picsum.photos/seed/${n}-${j + 1}/440/580`,
+            ),
+          };
+        });
+      }
+
+      async function sheetData() {
+        const url =
+          `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}` +
+          `/values/${encodeURIComponent(TAB_NAME + "!" + RANGE)}?key=${API_KEY}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Sheet request failed: " + res.status);
+        const { values = [] } = await res.json();
+
+        return values
+          .filter((row) => row[0] && row[0].trim())
+          .map((row) => ({
+            name: row[0].trim(),
+            // empty or "none" cells are skipped, so a student with
+            // 7 filled cells gets exactly 7 images
+            images: row
+              .slice(1, 1 + MAX_IMAGES)
+              .map((v) => (v || "").trim())
+              .filter((v) => v && v.toLowerCase() !== "none"),
+          }));
+      }
+
+      function shuffle(arr) {
+        const a = arr.slice();
+        for (let i = a.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+      }
+
+      const stack = document.getElementById("stack");
+      const thumbs = document.getElementById("thumbs");
+
+      function renderSpines(books) {
+        stack.innerHTML = "";
+
+        books.forEach((book) => {
+          const el = document.createElement("div");
+          el.className = "spine";
+
+          const name = document.createElement("span");
+          name.textContent = book.name;
+          el.appendChild(name);
+
+          const nums = document.createElement("span");
+          nums.className = "spine-nums";
+
+          book.images.forEach((src, i) => {
+            const b = document.createElement("button");
+            b.className = "num";
+            b.type = "button";
+            b.setAttribute("aria-label", `${book.name} — image ${i + 1}`);
+            b.dataset.img = src;
+            nums.appendChild(b);
+            new Image().src = src;
+          });
+
+          el.appendChild(nums);
+          stack.appendChild(el);
+        });
+      }
+
+      const DEFAULT_ASPECT = 0.76; // width ÷ height until an image has loaded
+      const MIN_H = 20; // smallest the thumbnails are allowed to get
+      const aspects = new Map(); // image url -> real width ÷ height
+      let current = []; // students in their shuffled order
+      let expanded = null; // index of the student showing all images
+      let nameLen = 160; // longest name as a vertical spine
+
+      function thumbButton(book, src, i) {
+        const b = document.createElement("div");
+        b.className = "thumb";
+
+        const img = document.createElement("img");
+        img.alt = `${book.name} — image ${i + 1}`;
+        img.loading = "lazy"; // hidden extras don't load until revealed
+        img.decoding = "async";
+        img.addEventListener(
+          "load",
+          () => {
+            aspects.set(src, img.naturalWidth / img.naturalHeight);
+            scheduleFit();
+          },
+          { once: true },
+        );
+        img.src = src;
+        b.appendChild(img);
+        return b;
+      }
+
+      function setMoreLabel(btn, open, count) {
+        btn.setAttribute("aria-expanded", String(open));
+        btn.setAttribute(
+          "aria-label",
+          `${open ? "Hide" : "Show"} ${count} more image${count > 1 ? "s" : ""}`,
+        );
+      }
+
+      function renderThumbs(books) {
+        thumbs.innerHTML = "";
+
+        books.forEach((book, index) => {
+          const item = document.createElement("div");
+          item.className = "thumb-item";
+          item.dataset.index = index;
+
+          // spine first, so it sits to the left of the thumbnails
+          const name = document.createElement("span");
+          name.className = "thumb-name";
+          name.textContent = book.name;
+          name.title = book.name;
+          item.appendChild(name);
+
+          const strip = document.createElement("div");
+          strip.className = "thumb-strip";
+
+          const shown = book.images.slice(0, THUMBS_SHOWN);
+          shown.forEach((src, i) => strip.appendChild(thumbButton(book, src, i)));
+
+          if (!shown.length) {
+            const empty = document.createElement("div");
+            empty.className = "thumb-empty";
+            strip.appendChild(empty);
+          }
+
+          const rest = book.images.slice(THUMBS_SHOWN);
+          if (rest.length) {
+            const more = document.createElement("button");
+            more.className = "thumb-more";
+            more.type = "button";
+            more.dataset.count = rest.length;
+            setMoreLabel(more, false, rest.length);
+            strip.appendChild(more);
+
+            const extra = document.createElement("span");
+            extra.className = "thumb-extra";
+            rest.forEach((src, j) =>
+              extra.appendChild(thumbButton(book, src, THUMBS_SHOWN + j)),
+            );
+            strip.appendChild(extra);
+          }
+
+          item.appendChild(strip);
+          thumbs.appendChild(item);
+        });
+
+        measureNames(books);
+        fitThumbs();
+      }
+
+      // one student at a time can be opened; clicking again closes it
+      function toggleMore(btn) {
+        const item = btn.closest(".thumb-item");
+        const index = Number(item.dataset.index);
+        const opening = expanded !== index;
+
+        thumbs.querySelectorAll(".thumb-item.is-open").forEach((el) => {
+          el.classList.remove("is-open");
+          const b = el.querySelector(".thumb-more");
+          setMoreLabel(b, false, Number(b.dataset.count));
+        });
+
+        expanded = opening ? index : null;
+        if (opening) {
+          item.classList.add("is-open");
+          setMoreLabel(btn, true, Number(btn.dataset.count));
+        }
+        fitThumbs();
+      }
+
+      function measureNames(books) {
+        const probe = document.createElement("span");
+        probe.className = "thumb-name is-measure";
+        document.body.appendChild(probe);
+        let tallest = 0;
+        books.forEach((book) => {
+          probe.textContent = book.name;
+          tallest = Math.max(tallest, probe.offsetHeight);
+        });
+        probe.remove();
+        if (tallest) nameLen = tallest;
+      }
+
+      // how wide one student is at thumbnail height h
+      function studentWidth(book, open, h, sizes) {
+        const imgs = open ? book.images : book.images.slice(0, THUMBS_SHOWN);
+        const hasMore = book.images.length > THUMBS_SHOWN;
+        let w = sizes.spine;
+        if (imgs.length) {
+          imgs.forEach((src) => (w += h * (aspects.get(src) || DEFAULT_ASPECT)));
+        } else {
+          w += h * DEFAULT_ASPECT;
+        }
+        if (hasMore) w += sizes.square;
+        const pieces = Math.max(imgs.length, 1) + (hasMore ? 1 : 0);
+        return w + (pieces - 1) * sizes.gap;
+      }
+
+      // Start at the longest-name height and shrink until the whole pile
+      // fits above the bottom row, with no scrolling.
+      function fitThumbs() {
+        if (!current.length) return;
+        const css = getComputedStyle(document.documentElement);
+        const px = (name, fallback) =>
+          parseFloat(css.getPropertyValue(name)) || fallback;
+        const sizes = {
+          gap: px("--gap", 2),
+          spine: px("--thickness", 26),
+          square: px("--square", 12),
+        };
+        const W = document.documentElement.clientWidth - 4; // rounding slack
+        const H =
+          window.innerHeight -
+          document.getElementById("board").offsetHeight -
+          sizes.gap;
+
+        let h = Math.floor(nameLen);
+        for (; h > MIN_H; h--) {
+          // pack students into rows the same way flex-wrap does
+          let rows = 1;
+          let rowW = 0;
+          current.forEach((book, i) => {
+            const w = studentWidth(book, i === expanded, h, sizes);
+            if (rowW && rowW + sizes.gap + w > W) {
+              rows++;
+              rowW = w;
+            } else {
+              rowW += (rowW ? sizes.gap : 0) + w;
+            }
+          });
+          if (rows * h + (rows - 1) * sizes.gap <= H) break;
+        }
+        thumbs.style.setProperty("--thumb-h", h + "px");
+      }
+
+      let fitQueued = false;
+      function scheduleFit() {
+        if (fitQueued) return;
+        fitQueued = true;
+        requestAnimationFrame(() => {
+          fitQueued = false;
+          fitThumbs();
+        });
+      }
+
+      window.addEventListener("resize", scheduleFit);
+      // re-measure once the webfont is in, since name lengths change
+      if (document.fonts) {
+        document.fonts.ready.then(() => {
+          measureNames(current);
+          fitThumbs();
+        });
+      }
+
+      function render(books) {
+        current = shuffle(books); // same order in both views
+        expanded = null;
+        renderSpines(current);
+        renderThumbs(current);
+      }
+
+      (async function init() {
+        if (SHEET_ID && API_KEY) {
+          try {
+            render(await sheetData());
+            return;
+          } catch (err) {
+            console.error(err);
+          }
+        }
+        render(placeholderData());
+      })();
+
+      const preview = document.getElementById("preview");
+      const caption = document.getElementById("caption");
+      const viewBtns = document.querySelectorAll(".view-btn");
+      const IMG_BTN = ".num"; // only the spine-view squares open a preview
+      let active = null;
+
+      function setView(view) {
+        hide();
+        document.body.dataset.view = view;
+        viewBtns.forEach((b) =>
+          b.setAttribute("aria-pressed", String(b.dataset.view === view)),
+        );
+        if (view === "thumbs") fitThumbs();
+      }
+
+      function clearActive() {
+        document
+          .querySelectorAll(".is-active")
+          .forEach((n) => n.classList.remove("is-active"));
+      }
+
+      function showImage(btn) {
+        active = btn;
+        preview.src = btn.dataset.img;
+        preview.alt = btn.getAttribute("aria-label");
+        preview.classList.add("is-visible");
+      }
+
+      function hide() {
+        active = null;
+        preview.classList.remove("is-visible");
+        caption.classList.remove("is-visible");
+        clearActive();
+      }
+
+      document.addEventListener("mouseover", (e) => {
+        const btn = e.target.closest(IMG_BTN);
+        if (btn) return showImage(btn);
+        if (e.target.closest("#title")) caption.classList.add("is-visible");
+      });
+
+      document.addEventListener("mouseout", (e) => {
+        const fromImg = e.target.closest(IMG_BTN);
+        if (!fromImg && !e.target.closest("#title")) return;
+        const to = e.relatedTarget;
+        // going straight onto another image: mouseover swaps it, no blink
+        if (fromImg && to && to.closest && to.closest(IMG_BTN)) return;
+        hide();
+      });
+
+      document.addEventListener("focusin", (e) => {
+        const btn = e.target.closest(IMG_BTN);
+        if (btn) return showImage(btn);
+        if (e.target.closest("#title")) caption.classList.add("is-visible");
+      });
+
+      document.addEventListener("focusout", (e) => {
+        if (e.target.closest(IMG_BTN) || e.target.closest("#title")) hide();
+      });
+
+      document.addEventListener("click", (e) => {
+        const viewBtn = e.target.closest(".view-btn");
+        if (viewBtn) return setView(viewBtn.dataset.view);
+
+        const moreBtn = e.target.closest(".thumb-more");
+        if (moreBtn) return toggleMore(moreBtn);
+
+        if (e.target.closest("#title")) {
+          return caption.classList.toggle("is-visible");
+        }
+        const btn = e.target.closest(IMG_BTN);
+        if (!btn) return hide();
+        if (active === btn) return hide();
+        clearActive();
+        btn.classList.add("is-active");
+        showImage(btn);
+      });
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") hide();
+      });
+    </script>
+  </body>
+</html>
