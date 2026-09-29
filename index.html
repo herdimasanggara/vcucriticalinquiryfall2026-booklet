@@ -21,15 +21,20 @@
         --title-hl: #5ba300;
         --title-hl-hover: #b51963;
         --marker: #f57600;
-        --toggle: #000000; /* the two view circles */
+        --toggle: #000000;
         --text: #ffffff;
         --thickness: 26px;
         --gap: 2px;
         --pad: 10px;
         --square: 12px;
-        --tracking: 0.01em; /* letter-spacing, used everywhere */
-        --preview-w: 760px; /* max width of the hover image */
-        --preview-h: 60vh; /* max height of the hover image */
+        --tracking: 0.01em;
+        --preview-w: 760px;
+
+        --frame-w: 100vw;
+        --frame-h: 100dvh;
+        --preview-h: calc(var(--frame-h) * 0.6);
+        --caption-w: min(300px, calc(var(--frame-w) * 0.55));
+        --thumb-gap: 1px;
       }
 
       * {
@@ -42,20 +47,55 @@
         padding: 0;
       }
 
-      html,
-      .thumb-item {
+      html {
         scrollbar-width: none;
       }
 
-      html::-webkit-scrollbar,
-      .thumb-item::-webkit-scrollbar {
+      html::-webkit-scrollbar {
         display: none;
       }
 
+      html.is-reel {
+        --reel-margin: 24px;
+        --frame-h: min(
+          calc(100dvh - var(--reel-margin) * 2),
+          calc((100vw - var(--reel-margin) * 2) * 5 / 4)
+        );
+        --frame-w: calc(var(--frame-h) * 4 / 5);
+        height: 100dvh;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        background: #000000;
+      }
+
+      html.is-reel body {
+        width: var(--frame-w);
+        height: var(--frame-h);
+        min-height: 0;
+        overflow: hidden;
+
+        transform: translateZ(0);
+        outline: 1px solid #ffffff;
+        outline-offset: 2px;
+      }
+
+      html.is-reel .thumbs {
+        max-width: var(--frame-w);
+      }
+
+      #frame-probe {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: var(--frame-w);
+        height: var(--frame-h);
+        visibility: hidden;
+        pointer-events: none;
+      }
+
       body {
-        /* min-height (not height) so a tall thumbnail pile can grow and
-           scroll instead of being pushed off the top of the screen */
-        min-height: 100dvh;
+        min-height: var(--frame-h);
         display: flex;
         flex-direction: column;
         justify-content: flex-end;
@@ -68,14 +108,10 @@
         font-optical-sizing: auto;
       }
 
-      /* ---------- view switching ---------- */
-
       body[data-view="spines"] #thumbs,
       body[data-view="thumbs"] #stack {
         display: none;
       }
-
-      /* ---------- version 1: spines ---------- */
 
       .stack {
         position: relative;
@@ -90,9 +126,9 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: var(--pad); /* same as the left/right inset */
+        gap: var(--pad);
         width: fit-content;
-        max-width: 100vw;
+        max-width: var(--frame-w);
         height: var(--thickness);
         padding: 0 var(--pad);
         background: var(--spine);
@@ -103,14 +139,15 @@
         transition: transform 120ms ease;
       }
 
-      .spine:hover {
+      .spine:hover,
+      .spine.is-active {
         transform: translateX(-6px);
       }
 
       .spine-nums {
         display: flex;
         align-items: center;
-        gap: 0; /* no dead space, so the preview never blinks off */
+        gap: 0;
       }
 
       .num {
@@ -122,7 +159,6 @@
         cursor: pointer;
       }
 
-      /* the "gap" is painted inside the square, so it still counts as hover */
       .num + .num {
         box-shadow: inset 1px 0 0 var(--spine);
       }
@@ -133,38 +169,33 @@
         background: var(--text);
       }
 
-      /* ---------- version 2: first five thumbnails ---------- */
-
       .thumbs {
-        /* --thumb-h is set from JS: the length of the longest name as a
-           vertical spine. Every vertical spine and thumbnail uses it. */
         --thumb-h: 160px;
         position: relative;
         z-index: 1;
+
         display: flex;
-        /* students fill from the bottom-right; wrap-reverse sends any
-           leftovers to the top, so full rows sit at the bottom of the pile */
-        flex-wrap: wrap-reverse;
-        justify-content: flex-end;
-        gap: var(--gap);
-        max-width: 100vw;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: var(--thumb-gap);
+
+        max-width: calc(var(--frame-w) - var(--caption-w) - var(--pad));
       }
 
-      .thumb-item {
+      .thumb-row {
         display: flex;
-        align-items: flex-start;
-        flex: 0 1 auto;
-        min-width: 0;
-        max-width: 100vw;
-        overflow-x: auto; /* only kicks in on screens narrower than one student */
+        gap: var(--thumb-gap);
       }
 
-      .thumb-strip {
+      .thumb-seg {
         display: flex;
-        gap: var(--gap);
+        gap: var(--thumb-gap);
       }
 
-      /* display only: no hover, no click */
+      .thumb-seg > .thumb-name {
+        margin-right: calc(var(--thumb-gap) * -1);
+      }
+
       .thumb {
         display: block;
         flex: none;
@@ -172,7 +203,6 @@
         background: var(--spine);
       }
 
-      /* natural proportions, no cropping */
       .thumb img {
         display: block;
         height: 100%;
@@ -186,7 +216,6 @@
         background: var(--spine);
       }
 
-      /* orange edge after the 5th image: click to reveal the rest */
       .thumb-more {
         flex: none;
         width: var(--square);
@@ -202,15 +231,6 @@
         background: var(--text);
       }
 
-      .thumb-extra {
-        display: none;
-      }
-
-      .thumb-item.is-open .thumb-extra {
-        display: contents; /* extra images join the strip's own spacing */
-      }
-
-      /* the horizontal spine turned on end: reads bottom to top */
       .thumb-name {
         display: block;
         flex: none;
@@ -226,18 +246,15 @@
         letter-spacing: var(--tracking);
         white-space: nowrap;
         overflow: hidden;
-        text-overflow: ellipsis; /* only if the pile had to shrink below the name */
+        text-overflow: ellipsis;
       }
 
-      /* off-screen copy used to measure the longest name */
       .thumb-name.is-measure {
         position: absolute;
         visibility: hidden;
         height: auto;
         pointer-events: none;
       }
-
-      /* ---------- bottom row ---------- */
 
       .board {
         position: relative;
@@ -289,6 +306,22 @@
         background: var(--toggle);
       }
 
+      .flip-btn {
+        width: var(--square);
+        height: var(--square);
+        padding: 0;
+        border: 1px solid var(--toggle);
+        border-radius: 0;
+        background: transparent;
+        cursor: pointer;
+      }
+
+      .flip-btn:hover,
+      .flip-btn[aria-pressed="true"] {
+        background: var(--toggle);
+      }
+
+      .flip-btn:focus-visible,
       .view-btn:focus-visible {
         outline: 1.5px solid var(--text);
         outline-offset: 1px;
@@ -310,31 +343,25 @@
         color: var(--text);
       }
 
-      /* ---------- top-left overlays ---------- */
-
       #preview,
       #caption {
         position: fixed;
         top: 0;
         left: 0;
-        z-index: 0; /* sits behind the spines and the bottom row */
+        z-index: 0;
         display: none;
         pointer-events: none;
       }
 
-      /* Every preview fits the same box: as big as it can be without
-         going past 760px wide or 60% of the screen height. Tall images
-         stop at the height, wide ones at the width, small files scale up.
-         Nothing is cropped; the image hugs the top-left corner. */
       #preview {
-        width: min(var(--preview-w), 70vw);
+        width: min(var(--preview-w), calc(var(--frame-w) * 0.7));
         height: var(--preview-h);
         object-fit: contain;
         object-position: left top;
       }
 
       #caption {
-        max-width: min(300px, 55vw);
+        max-width: var(--caption-w);
         margin: 0;
         padding: var(--pad);
         color: #000000;
@@ -352,14 +379,16 @@
         .spine {
           transition: none;
         }
-        .spine:hover {
+        .spine:hover,
+        .spine.is-active {
           transform: none;
         }
       }
-    </style>
+</style>
   </head>
 
   <body data-view="spines">
+    <div id="frame-probe" aria-hidden="true"></div>
     <div class="stack" id="stack"></div>
     <div class="thumbs" id="thumbs"></div>
 
@@ -379,6 +408,13 @@
             type="button"
             data-view="thumbs"
             aria-label="Thumbnail view"
+            aria-pressed="false"
+          ></button>
+          <button
+            class="flip-btn"
+            id="flip"
+            type="button"
+            aria-label="Flip through all images"
             aria-pressed="false"
           ></button>
         </span>
@@ -404,15 +440,15 @@
       const API_KEY = "AIzaSyBT1RtYVeoSg1DqcUN9LsUQyQdRNeypAwY";
       const TAB_NAME = "fall_2026";
       const MAX_IMAGES = 15;
-      // column B = name, C through Q = up to 15 images
+
       const RANGE = "B3:Q20";
 
-      const THUMBS_SHOWN = 5; // images per student in the thumbnail view
+      const THUMBS_SHOWN = 5;
 
       function placeholderData() {
         return Array.from({ length: 18 }, (_, i) => {
           const n = String(i + 1).padStart(2, "0");
-          const count = 4 + ((i * 5) % 12); // 4 to 15 images
+          const count = 4 + ((i * 5) % 12);
           return {
             name: "Placeholder Name " + n,
             images: Array.from(
@@ -435,8 +471,7 @@
           .filter((row) => row[0] && row[0].trim())
           .map((row) => ({
             name: row[0].trim(),
-            // empty or "none" cells are skipped, so a student with
-            // 7 filled cells gets exactly 7 images
+
             images: row
               .slice(1, 1 + MAX_IMAGES)
               .map((v) => (v || "").trim())
@@ -485,20 +520,23 @@
         });
       }
 
-      const DEFAULT_ASPECT = 0.76; // width ÷ height until an image has loaded
-      const MIN_H = 20; // smallest the thumbnails are allowed to get
-      const aspects = new Map(); // image url -> real width ÷ height
-      let current = []; // students in their shuffled order
-      let expanded = null; // index of the student showing all images
-      let nameLen = 160; // longest name as a vertical spine
+      const DEFAULT_ASPECT = 0.76;
+      const MIN_H = 20;
+      const CAPTION_MAX = 300;
+      const CAPTION_VW = 0.55;
+      const aspects = new Map();
+      let current = [];
+      let expanded = null;
+      let nameLen = 160;
 
       function thumbButton(book, src, i) {
         const b = document.createElement("div");
         b.className = "thumb";
+        b.dataset.src = src;
 
         const img = document.createElement("img");
         img.alt = `${book.name} — image ${i + 1}`;
-        img.loading = "lazy"; // hidden extras don't load until revealed
+        img.loading = "lazy";
         img.decoding = "async";
         img.addEventListener(
           "load",
@@ -521,76 +559,57 @@
         );
       }
 
+      let students = [];
+
       function renderThumbs(books) {
-        thumbs.innerHTML = "";
+        students = books.map((book, index) => {
+          const spine = document.createElement("span");
+          spine.className = "thumb-name";
+          spine.textContent = book.name;
+          spine.title = book.name;
 
-        books.forEach((book, index) => {
-          const item = document.createElement("div");
-          item.className = "thumb-item";
-          item.dataset.index = index;
+          const shown = book.images
+            .slice(0, THUMBS_SHOWN)
+            .map((src, i) => thumbButton(book, src, i));
+          const extras = book.images
+            .slice(THUMBS_SHOWN)
+            .map((src, j) => thumbButton(book, src, THUMBS_SHOWN + j));
 
-          // spine first, so it sits to the left of the thumbnails
-          const name = document.createElement("span");
-          name.className = "thumb-name";
-          name.textContent = book.name;
-          name.title = book.name;
-          item.appendChild(name);
-
-          const strip = document.createElement("div");
-          strip.className = "thumb-strip";
-
-          const shown = book.images.slice(0, THUMBS_SHOWN);
-          shown.forEach((src, i) => strip.appendChild(thumbButton(book, src, i)));
-
+          let empty = null;
           if (!shown.length) {
-            const empty = document.createElement("div");
+            empty = document.createElement("div");
             empty.className = "thumb-empty";
-            strip.appendChild(empty);
           }
 
-          const rest = book.images.slice(THUMBS_SHOWN);
-          if (rest.length) {
-            const more = document.createElement("button");
+          let more = null;
+          if (extras.length) {
+            more = document.createElement("button");
             more.className = "thumb-more";
             more.type = "button";
-            more.dataset.count = rest.length;
-            setMoreLabel(more, false, rest.length);
-            strip.appendChild(more);
-
-            const extra = document.createElement("span");
-            extra.className = "thumb-extra";
-            rest.forEach((src, j) =>
-              extra.appendChild(thumbButton(book, src, THUMBS_SHOWN + j)),
-            );
-            strip.appendChild(extra);
+            more.dataset.index = index;
+            more.dataset.count = extras.length;
+            setMoreLabel(more, false, extras.length);
           }
 
-          item.appendChild(strip);
-          thumbs.appendChild(item);
+          return { book, spine, shown, extras, empty, more };
         });
 
         measureNames(books);
         fitThumbs();
       }
 
-      // one student at a time can be opened; clicking again closes it
       function toggleMore(btn) {
-        const item = btn.closest(".thumb-item");
-        const index = Number(item.dataset.index);
+        const index = Number(btn.dataset.index);
         const opening = expanded !== index;
 
-        thumbs.querySelectorAll(".thumb-item.is-open").forEach((el) => {
-          el.classList.remove("is-open");
-          const b = el.querySelector(".thumb-more");
-          setMoreLabel(b, false, Number(b.dataset.count));
+        students.forEach((st) => {
+          if (st.more) setMoreLabel(st.more, false, st.extras.length);
         });
-
         expanded = opening ? index : null;
-        if (opening) {
-          item.classList.add("is-open");
-          setMoreLabel(btn, true, Number(btn.dataset.count));
-        }
+        if (opening) setMoreLabel(btn, true, Number(btn.dataset.count));
+
         fitThumbs();
+        btn.focus({ preventScroll: true });
       }
 
       function measureNames(books) {
@@ -606,25 +625,64 @@
         if (tallest) nameLen = tallest;
       }
 
-      // how wide one student is at thumbnail height h
-      function studentWidth(book, open, h, sizes) {
-        const imgs = open ? book.images : book.images.slice(0, THUMBS_SHOWN);
-        const hasMore = book.images.length > THUMBS_SHOWN;
-        let w = sizes.spine;
-        if (imgs.length) {
-          imgs.forEach((src) => (w += h * (aspects.get(src) || DEFAULT_ASPECT)));
-        } else {
-          w += h * DEFAULT_ASPECT;
+      function piecesOf(st, i, h, sizes) {
+        const list = st.empty ? [st.empty] : st.shown.slice();
+        if (st.more) {
+          list.push(st.more);
+          if (i === expanded) list.push(...st.extras);
         }
-        if (hasMore) w += sizes.square;
-        const pieces = Math.max(imgs.length, 1) + (hasMore ? 1 : 0);
-        return w + (pieces - 1) * sizes.gap;
+        return list.map((el) => {
+          let w;
+          if (el === st.more) w = sizes.square;
+          else if (el === st.empty) w = h * DEFAULT_ASPECT;
+          else w = h * (aspects.get(el.dataset.src) || DEFAULT_ASPECT);
+          return { el, w };
+        });
       }
 
-      // Start at the longest-name height and shrink until the whole pile
-      // fits above the bottom row, with no scrolling.
+      function pack(h, W, sizes) {
+        const g = sizes.thumbGap;
+        const rows = [];
+        let row = null;
+        let rowW = 0;
+        const newRow = () => {
+          row = [];
+          rows.push(row);
+          rowW = 0;
+        };
+        newRow();
+
+        students.forEach((st, i) => {
+          const pieces = piecesOf(st, i, h, sizes);
+          const full =
+            sizes.spine +
+            pieces.reduce((a, p) => a + p.w, 0) +
+            (pieces.length - 1) * g;
+          if (row.length && rowW + g + full > W) newRow();
+
+          let seg = { spine: st.spine, els: [] };
+          row.push(seg);
+          rowW += (row.length > 1 ? g : 0) + sizes.spine;
+
+          pieces.forEach((p) => {
+            const joined = seg.spine && !seg.els.length;
+            const need = (joined || !seg.els.length ? 0 : g) + p.w;
+            if (rowW + need > W && seg.els.length) {
+              newRow();
+              seg = { spine: null, els: [] };
+              row.push(seg);
+              rowW += p.w;
+            } else {
+              rowW += need;
+            }
+            seg.els.push(p.el);
+          });
+        });
+        return rows;
+      }
+
       function fitThumbs() {
-        if (!current.length) return;
+        if (!students.length) return;
         const css = getComputedStyle(document.documentElement);
         const px = (name, fallback) =>
           parseFloat(css.getPropertyValue(name)) || fallback;
@@ -632,30 +690,51 @@
           gap: px("--gap", 2),
           spine: px("--thickness", 26),
           square: px("--square", 12),
+          thumbGap: px("--thumb-gap", 1),
         };
-        const W = document.documentElement.clientWidth - 4; // rounding slack
+        const probe = document.getElementById("frame-probe");
+        const frameW = probe.offsetWidth;
+        const frameH = probe.offsetHeight;
+        const reel = document.documentElement.classList.contains("is-reel");
+
+        const reserved = reel
+          ? 0
+          : Math.min(CAPTION_MAX, frameW * CAPTION_VW) + px("--pad", 10);
+        const W = frameW - reserved - 4;
         const H =
-          window.innerHeight -
-          document.getElementById("board").offsetHeight -
-          sizes.gap;
+          frameH - document.getElementById("board").offsetHeight - sizes.gap;
 
         let h = Math.floor(nameLen);
-        for (; h > MIN_H; h--) {
-          // pack students into rows the same way flex-wrap does
-          let rows = 1;
-          let rowW = 0;
-          current.forEach((book, i) => {
-            const w = studentWidth(book, i === expanded, h, sizes);
-            if (rowW && rowW + sizes.gap + w > W) {
-              rows++;
-              rowW = w;
-            } else {
-              rowW += (rowW ? sizes.gap : 0) + w;
-            }
-          });
-          if (rows * h + (rows - 1) * sizes.gap <= H) break;
+        let rows = pack(h, W, sizes);
+        while (h > MIN_H && rows.length * (h + sizes.thumbGap) - sizes.thumbGap > H) {
+          h--;
+          rows = pack(h, W, sizes);
         }
         thumbs.style.setProperty("--thumb-h", h + "px");
+
+        thumbs.replaceChildren(
+          ...rows.map((segs) => {
+            const rowEl = document.createElement("div");
+            rowEl.className = "thumb-row";
+            segs.forEach((seg) => {
+              const segEl = document.createElement("div");
+              segEl.className = "thumb-seg";
+              if (seg.spine) segEl.appendChild(seg.spine);
+              seg.els.forEach((el) => segEl.appendChild(el));
+              rowEl.appendChild(segEl);
+            });
+            return rowEl;
+          }),
+        );
+      }
+
+      function setReel(on) {
+        document.documentElement.classList.toggle("is-reel", on);
+        scheduleFit();
+      }
+
+      if (new URLSearchParams(location.search).has("reel")) {
+        document.documentElement.classList.add("is-reel");
       }
 
       let fitQueued = false;
@@ -665,11 +744,12 @@
         requestAnimationFrame(() => {
           fitQueued = false;
           fitThumbs();
+          fitPreview();
         });
       }
 
       window.addEventListener("resize", scheduleFit);
-      // re-measure once the webfont is in, since name lengths change
+
       if (document.fonts) {
         document.fonts.ready.then(() => {
           measureNames(current);
@@ -678,7 +758,7 @@
       }
 
       function render(books) {
-        current = shuffle(books); // same order in both views
+        current = shuffle(books);
         expanded = null;
         renderSpines(current);
         renderThumbs(current);
@@ -699,8 +779,96 @@
       const preview = document.getElementById("preview");
       const caption = document.getElementById("caption");
       const viewBtns = document.querySelectorAll(".view-btn");
-      const IMG_BTN = ".num"; // only the spine-view squares open a preview
+      const IMG_BTN = ".num";
       let active = null;
+
+      const FLIP_MS = 200;
+      const LOOKAHEAD = 4;
+      const KEEP = 10;
+      const flipBtn = document.getElementById("flip");
+      const prepared = new Map();
+      let flipTimer = null;
+      let flipToken = 0;
+      let flipIndex = -1;
+      let resumeAt = -1;
+
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+      function prepare(src) {
+        if (!prepared.has(src)) {
+          const im = new Image();
+          im.src = src;
+          prepared.set(
+            src,
+            im.decode().catch(() => {}).then(() => im),
+          );
+
+          while (prepared.size > KEEP) {
+            prepared.delete(prepared.keys().next().value);
+          }
+        }
+        return prepared.get(src);
+      }
+
+      function showFlip(btn) {
+        clearActive();
+        btn.classList.add("is-active");
+        btn.closest(".spine").classList.add("is-active");
+        showImage(btn);
+      }
+
+      async function flipLoop(token) {
+        let first = true;
+        while (token === flipToken) {
+          const nums = [...stack.querySelectorAll(".num")];
+          if (!nums.length) return stopFlip();
+
+          flipIndex = (flipIndex + 1) % nums.length;
+          const btn = nums[flipIndex];
+          if (!first) {
+            await prepare(btn.dataset.img);
+            if (token !== flipToken) return;
+          }
+          first = false;
+          showFlip(btn);
+
+          for (let k = 1; k <= LOOKAHEAD; k++) {
+            prepare(nums[(flipIndex + k) % nums.length].dataset.img);
+          }
+          const next = nums[(flipIndex + 1) % nums.length].dataset.img;
+
+          await Promise.all([sleep(FLIP_MS), prepare(next)]);
+        }
+      }
+
+      function warmFlip() {
+        const nums = [...stack.querySelectorAll(".num")];
+        if (!nums.length || flipTimer) return;
+        for (let k = 1; k <= LOOKAHEAD; k++) {
+          prepare(nums[(resumeAt + k) % nums.length].dataset.img);
+        }
+      }
+
+      flipBtn.addEventListener("pointerenter", warmFlip);
+      flipBtn.addEventListener("focus", warmFlip);
+
+      function startFlip() {
+        const startFrom = active
+          ? [...stack.querySelectorAll(".num")].indexOf(active)
+          : resumeAt;
+        if (document.body.dataset.view !== "spines") setView("spines");
+        flipIndex = startFrom;
+        flipTimer = true;
+        flipBtn.setAttribute("aria-pressed", "true");
+        flipLoop(++flipToken);
+      }
+
+      function stopFlip() {
+        if (flipTimer) resumeAt = flipIndex;
+        flipToken++;
+        flipTimer = null;
+        flipBtn.setAttribute("aria-pressed", "false");
+      }
 
       function setView(view) {
         hide();
@@ -719,12 +887,58 @@
 
       function showImage(btn) {
         active = btn;
+        if (document.documentElement.classList.contains("is-reel")) {
+          preview.style.visibility = "hidden";
+        }
         preview.src = btn.dataset.img;
         preview.alt = btn.getAttribute("aria-label");
         preview.classList.add("is-visible");
+        fitPreview();
       }
 
+      function fitPreview() {
+        const reel = document.documentElement.classList.contains("is-reel");
+        if (!reel || !preview.complete || !preview.naturalWidth) {
+          if (!reel) {
+            preview.style.width = "";
+            preview.style.height = "";
+            preview.style.visibility = "";
+          }
+          return;
+        }
+        const frame = document.body.getBoundingClientRect();
+        const css = getComputedStyle(document.documentElement);
+        const maxW = Math.min(
+          parseFloat(css.getPropertyValue("--preview-w")) || 760,
+          frame.width * 0.7,
+        );
+        const aspect = preview.naturalWidth / preview.naturalHeight;
+        const room = 8;
+        const blocks = [
+          ...stack.querySelectorAll(".spine"),
+          document.getElementById("board"),
+        ].map((el) => {
+          const r = el.getBoundingClientRect();
+          return { left: r.left - frame.left - room, top: r.top - frame.top - room };
+        });
+        let h = Math.floor(frame.height * 0.6);
+        for (; h > 20; h--) {
+          const w = Math.min(aspect * h, maxW);
+          const clear = blocks
+            .filter((b) => b.left < w)
+            .reduce((m, b) => Math.min(m, b.top), Infinity);
+          if (h <= clear) break;
+        }
+        const w = Math.min(aspect * h, maxW);
+        preview.style.width = w + "px";
+        preview.style.height = w / aspect + "px";
+        preview.style.visibility = "";
+      }
+
+      preview.addEventListener("load", fitPreview);
+
       function hide() {
+        stopFlip();
         active = null;
         preview.classList.remove("is-visible");
         caption.classList.remove("is-visible");
@@ -733,15 +947,24 @@
 
       document.addEventListener("mouseover", (e) => {
         const btn = e.target.closest(IMG_BTN);
-        if (btn) return showImage(btn);
+        if (btn) {
+          if (flipTimer) {
+            stopFlip();
+            clearActive();
+          }
+          return showImage(btn);
+        }
         if (e.target.closest("#title")) caption.classList.add("is-visible");
       });
 
       document.addEventListener("mouseout", (e) => {
+        if (e.target.closest("#title")) {
+          return caption.classList.remove("is-visible");
+        }
         const fromImg = e.target.closest(IMG_BTN);
-        if (!fromImg && !e.target.closest("#title")) return;
+        if (!fromImg) return;
         const to = e.relatedTarget;
-        // going straight onto another image: mouseover swaps it, no blink
+
         if (fromImg && to && to.closest && to.closest(IMG_BTN)) return;
         hide();
       });
@@ -753,10 +976,17 @@
       });
 
       document.addEventListener("focusout", (e) => {
-        if (e.target.closest(IMG_BTN) || e.target.closest("#title")) hide();
+        if (e.target.closest("#title")) {
+          return caption.classList.remove("is-visible");
+        }
+        if (e.target.closest(IMG_BTN) && !flipTimer) hide();
       });
 
       document.addEventListener("click", (e) => {
+        if (e.target.closest("#flip")) {
+          return flipTimer ? hide() : startFlip();
+        }
+
         const viewBtn = e.target.closest(".view-btn");
         if (viewBtn) return setView(viewBtn.dataset.view);
 
@@ -769,6 +999,7 @@
         const btn = e.target.closest(IMG_BTN);
         if (!btn) return hide();
         if (active === btn) return hide();
+        stopFlip();
         clearActive();
         btn.classList.add("is-active");
         showImage(btn);
@@ -776,7 +1007,10 @@
 
       document.addEventListener("keydown", (e) => {
         if (e.key === "Escape") hide();
+        if ((e.key === "r" || e.key === "R") && !e.metaKey && !e.ctrlKey && !e.altKey) {
+          setReel(!document.documentElement.classList.contains("is-reel"));
+        }
       });
-    </script>
+</script>
   </body>
 </html>
