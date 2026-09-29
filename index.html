@@ -790,7 +790,7 @@
       let flipTimer = null;
       let flipToken = 0;
       let flipIndex = -1;
-      let resumeAt = -1;
+      const pinned = new Set();
 
       const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -803,8 +803,9 @@
             im.decode().catch(() => {}).then(() => im),
           );
 
-          while (prepared.size > KEEP) {
-            prepared.delete(prepared.keys().next().value);
+          for (const key of prepared.keys()) {
+            if (prepared.size <= KEEP) break;
+            if (!pinned.has(key)) prepared.delete(key);
           }
         }
         return prepared.get(src);
@@ -844,30 +845,47 @@
       function warmFlip() {
         const nums = [...stack.querySelectorAll(".num")];
         if (!nums.length || flipTimer) return;
-        for (let k = 1; k <= LOOKAHEAD; k++) {
-          prepare(nums[(resumeAt + k) % nums.length].dataset.img);
-        }
+        nums.slice(0, LOOKAHEAD + 1).forEach((n) => {
+          pinned.add(n.dataset.img);
+          prepare(n.dataset.img);
+        });
       }
 
       flipBtn.addEventListener("pointerenter", warmFlip);
       flipBtn.addEventListener("focus", warmFlip);
 
       function startFlip() {
-        const startFrom = active
-          ? [...stack.querySelectorAll(".num")].indexOf(active)
-          : resumeAt;
         if (document.body.dataset.view !== "spines") setView("spines");
-        flipIndex = startFrom;
+        flipIndex = -1;
+        warmFlip();
         flipTimer = true;
         flipBtn.setAttribute("aria-pressed", "true");
         flipLoop(++flipToken);
       }
 
       function stopFlip() {
-        if (flipTimer) resumeAt = flipIndex;
         flipToken++;
         flipTimer = null;
         flipBtn.setAttribute("aria-pressed", "false");
+      }
+
+      function reshuffle() {
+        if (!current.length) return;
+        hide();
+        const perm = shuffle(current.map((_, i) => i));
+        const spines = [...stack.children];
+        current = perm.map((i) => current[i]);
+        students = perm.map((i) => students[i]);
+        stack.replaceChildren(...perm.map((i) => spines[i]));
+        expanded = null;
+        pinned.clear();
+        students.forEach((st, i) => {
+          if (st.more) {
+            st.more.dataset.index = i;
+            setMoreLabel(st.more, false, st.extras.length);
+          }
+        });
+        fitThumbs();
       }
 
       function setView(view) {
@@ -988,7 +1006,10 @@
         }
 
         const viewBtn = e.target.closest(".view-btn");
-        if (viewBtn) return setView(viewBtn.dataset.view);
+        if (viewBtn) {
+          if (viewBtn.dataset.view === document.body.dataset.view) return reshuffle();
+          return setView(viewBtn.dataset.view);
+        }
 
         const moreBtn = e.target.closest(".thumb-more");
         if (moreBtn) return toggleMore(moreBtn);
@@ -1007,6 +1028,11 @@
 
       document.addEventListener("keydown", (e) => {
         if (e.key === "Escape") hide();
+        if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+          const key = { 1: 'data-view="spines"', 2: 'data-view="thumbs"' }[e.key];
+          if (key) document.querySelector(`.view-btn[${key}]`).click();
+          if (e.key === "3") flipBtn.click();
+        }
         if ((e.key === "r" || e.key === "R") && !e.metaKey && !e.ctrlKey && !e.altKey) {
           setReel(!document.documentElement.classList.contains("is-reel"));
         }
